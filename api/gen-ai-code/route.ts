@@ -74,6 +74,44 @@ RULES:
 9. Keep code clean, readable, and production-quality.
 10. If the user attaches an image, use it as a design reference and match the layout/style as closely as possible.`;
 
+
+function extractThoughtLabel(text: string): string | null {
+    // Try to grab **bold heading** at the start
+    const boldMatch = text.match(/\*\*([^*]{4,60})\*\*/);
+    if (boldMatch) return boldMatch[1].trim();
+
+    // Fall back to first sentence (up to first . or \n), capped at 60 chars
+    const sentence = text.split(/[.\n]/)[0].trim();
+    if (sentence.length >= 8 && sentence.length <= 80) return sentence;
+
+    return null;
+}
+
+function sseEvent(type: string, payload: unknown): string {
+    return `data: ${JSON.stringify({ type, ...(payload as object) })}\n\n`;
+}
+
+// ─── npm validation ───────────────────────────────────────────────────────────
+
+async function validateDependencies(
+    deps: Record<string, string>
+): Promise<Record<string, string>> {
+    const valid: Record<string, string> = {};
+    await Promise.all(
+        Object.entries(deps).map(async ([pkg, version]) => {
+            try {
+                const res = await fetch(`https://registry.npmjs.org/${pkg}/latest`, {
+                    signal: AbortSignal.timeout(1500),
+                });
+                if (res.ok) valid[pkg] = version;
+            } catch {
+                // silently skip hallucinated packages
+            }
+        })
+    );
+    return valid;
+}
+
 export async function POST(request: NextRequest) {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
@@ -108,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     const encoder = new TextEncoder();
 
-    const steam = new ReadableStream({
+    const stream = new ReadableStream({
         async start(controller) {
             const enqueue = (chunk: string) =>
                 controller.enqueue(encoder.encode(chunk))
@@ -132,11 +170,163 @@ export async function POST(request: NextRequest) {
                         },
                     },
                 });
+                let accumulated = ""; // collects the actual JSON output chunks
+                let lastEmitTime = 0; // used to throttle thought → status emissions
 
+                for await (const chunk of geminiStream) {
+                    const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+
+                    for (const part of parts) {
+                        if (!part.text) continue;
+
+                        if (part.thought) {
+                            // Thought chunks are Gemini's internal reasoning — verbose and frequent.
+                            // We throttle to one status update per 600ms and extract just the
+                            // bold heading or first sentence so the UI stays clean.
+                            const now = Date.now();
+                            if (now - lastEmitTime > 600) {
+                                const label = extractThoughtLabel(part.text);
+                                if (label) {
+                                    enqueue(sseEvent("status", { message: label }));
+                                    lastEmitTime = now;
+                                }
+                            }
+                        } else {
+                            // Actual JSON output
+                            accumulated += part.text;
+                        }
+                    }
+                }
+                // — Parse JSON ─────────────────────────────────────────────────────────
+                // If Gemini returns malformed JSON we abort here without deducting a credit.
+                // This is the "no charge on AI failure" guarantee.
+
+                let parsed: {
+                    assistantMessage: string;
+                    title?: string;
+                    files: Record<string, { code: string }>;
+                    dependencies: Record<string, string>;
+                };
+
+                try {
+                    parsed = JSON.parse(accumulated);
+                } catch (error) {
+                    enqueue(
+                        sseEvent("error", {
+                            message: "AI returned invalid JSON. Please try again.",
+                        })
+                    );
+                    controller.close();
+                    return;
+                }
+
+                const {
+                    assistantMessage,
+                    title: aiTitle,
+                    files,
+                    dependencies,
+                } = parsed;
+
+                if (!files || typeof files !== "object") {
+                    enqueue(
+                        sseEvent("error", {
+                            message: "AI response missing files. Please try again.",
+                        })
+                    );
+                    controller.close();
+                    return;
+                }
+                // ── Validate npm packages ──────────────────────────────────────────────
+
+                enqueue(sseEvent("status", { message: "Validating packages…" }));
+                const validatedDeps = await validateDependencies(dependencies ?? {});
+                const newFileData: FileData = {
+                    files,
+                    dependencies: validatedDeps,
+                    title: aiTitle,
+                };
+
+                // — Upsert workspace + deduct credit (single transaction) ───────────────
+                // Atomic: if either the DB write or the credit deduction fails,
+                // neither happens — user never loses a credit on a failed save.
+                // workspaceId is null on first generation → create, string → update.
+
+                enqueue(sseEvent("status", { message: "Saving…" }));
+
+                const lastUserMessage = messages[messages.length - 1];
+                const updatedMessages: Message[] = [
+                    ...messages,
+                    { role: "assistant", content: assistantMessage },
+                ];
+
+                const [workspace] = await db.$transaction([
+                    workspaceId
+                        ? db.workspace.update({
+                            where: { id: workspaceId, userId },
+                            data: {
+                                messages: updatedMessages as never,
+                                fileData: newFileData as never,
+                            },
+                        })
+                        : db.workspace.create({
+                            data: {
+                                userId,
+                                // Use AI-generated title if available, fall back to first 80
+                                // chars of the user's prompt
+                                title: aiTitle ?? lastUserMessage.content.slice(0, 80),
+                                messages: updatedMessages as never,
+                                fileData: newFileData as never,
+                            },
+                        }),
+                    db.user.update({
+                        where: { id: userId },
+                        data: { credits: { decrement: CREDIT_COST_PER_GENERATION } },
+                    }),
+                ]);
+
+
+                // Re-fetch updated credit balance to return accurate value to the client.
+                // The client updates its local credits state from this — no page refresh needed.
+                const updatedUser = await db.user.findUnique({
+                    where: { id: userId },
+                    select: { credits: true },
+                });
+
+                // — Final done event ────────────────────────────────────────────────────
+                // Client receives this, updates Sandpack with the new files,
+                // adds the assistant message to the chat, and updates the credit badge.
+                enqueue(
+                    sseEvent("done", {
+                        workspaceId: workspace.id,
+                        assistantMessage,
+                        fileData: newFileData,
+                        creditsRemaining:
+                            updatedUser?.credits ?? user.credits - CREDIT_COST_PER_GENERATION,
+                    })
+                );
             }
             catch (error) {
-
+                console.error("[gen-ai-code] stream error:", error);
+                enqueue(
+                    sseEvent("error", {
+                        message: "Something went wrong. Please try again.",
+                    })
+                );
+            } finally {
+                // Always close the stream — whether success, parse error, or exception
+                controller.close();
             }
         }
     })
+
+    return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
+
+export const runtime = "nodejs";
+export const maxDuration = 300; // for vercel - 300s on Fluid
