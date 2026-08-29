@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     // ── Arcjet: rate limit, prompt injection, sensitive info ──────────────────
 
     const user = await db.user.findUnique({
-        where: { id: userId, clerkId },
+        where: { clerkId },
         select: { id: true, credits: true },
     });
 
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
                 const contents = buildContents(messages, fileData);
 
                 const geminiStream = await ai.models.generateContentStream({
-                    model: "gemini-3.7-flash",
+                    model: "gemini-3.5-flash",
                     contents,
                     config: {
                         systemInstruction: SYSTEM_PROMPT,
@@ -320,12 +320,12 @@ export async function POST(request: NextRequest) {
     })
 
     return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+        headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+        },
+    });
 }
 
 export const runtime = "nodejs";
