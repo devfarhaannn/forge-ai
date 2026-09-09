@@ -283,8 +283,6 @@ export async function POST(request: NextRequest) {
                         data: { credits: { decrement: CREDIT_COST_PER_GENERATION } },
                     }),
                 ]);
-
-
                 
                 // Re-fetch updated credit balance to return accurate value to the client.
                 // The client updates its local credits state from this — no page refresh needed.
