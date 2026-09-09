@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
                 ]);
 
 
+                
                 // Re-fetch updated credit balance to return accurate value to the client.
                 // The client updates its local credits state from this — no page refresh needed.
                 const updatedUser = await db.user.findUnique({
