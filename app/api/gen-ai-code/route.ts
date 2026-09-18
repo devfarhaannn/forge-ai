@@ -4,6 +4,7 @@ import { FileData, Message } from "@/types/worksapce";
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import { GoogleGenAI } from "@google/genai"
+import { aj } from "@/lib/arcjet";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -131,6 +132,29 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Arcjet: rate limit, prompt injection, sensitive info ──────────────────
+    // Reconstruct new Request with the same body fror Arcjet to read
+
+    const arcjetReq = new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: JSON.stringify(body),
+    });
+
+    const lastUserMessage =
+        [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const decision = await aj.protect(arcjetReq, {
+        requested: 1,
+        userId: clerkId,
+        detectPromptInjectionMessage: lastUserMessage,
+    });
+
+    if (decision.isDenied()) {
+        return Response.json(
+            { message: decision.reason?.type ?? "Request blocked" },
+            { status: 429 }
+        );
+    }
+
 
     const user = await db.user.findUnique({
         where: { clerkId },
@@ -283,7 +307,7 @@ export async function POST(request: NextRequest) {
                         data: { credits: { decrement: CREDIT_COST_PER_GENERATION } },
                     }),
                 ]);
-                
+
                 // Re-fetch updated credit balance to return accurate value to the client.
                 // The client updates its local credits state from this — no page refresh needed.
                 const updatedUser = await db.user.findUnique({
