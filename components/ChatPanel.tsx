@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { steps } from 'motion/react';
 import { ArrowUp, Check, Loader2, Paperclip, Square } from 'lucide-react';
 import { Button } from './ui/button';
+import { useUser } from '@clerk/nextjs';
 
 
 interface ChatPanelProps {
@@ -38,6 +39,7 @@ function ChatPanel({
     workspaceId,
     appTitle,
 }: ChatPanelProps) {
+    const { user } = useUser();
     const scrollRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -146,12 +148,32 @@ function ChatPanel({
                                 <div className="flex items-start justify-end gap-2">
                                     <div className="max-w-[85%] space-y-1.5">
                                         {/* TODO: show messages url thubmail if present */}
+                                        {msg.imageUrl && (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={msg.imageUrl}
+                                                alt="uploaded"
+                                                className="max-h-40 w-full rounded-lg object-cover"
+                                            />
+                                        )}
                                         <div className="rounded-2xl rounded-br-sm bg-white/10 px-3.5 py-2.5">
                                             <p className="text-[13px] leading-relaxed text-white/80 wrap-break-word">
                                                 {msg.content}
                                             </p>
                                         </div>
                                     </div>
+                                    {user?.imageUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={user.imageUrl}
+                                            alt={user.fullName ?? "You"}
+                                            className="mt-0.5 h-6 w-6 shrink-0 rounded-full"
+                                        />
+                                    ) : (
+                                        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold text-white/50">
+                                            {user?.firstName?.[0] ?? "U"}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="flex items-start gap-2">
