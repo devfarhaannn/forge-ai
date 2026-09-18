@@ -38,7 +38,7 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
         parseMessages(workspace?.messages)
     );
     const [fileData, setFileData] = useState<FileData | null>(
-         parseFileData(workspace?.fileData)
+        parseFileData(workspace?.fileData)
     )
 
     const [credits, setCredits] = useState(userCredits);
@@ -57,6 +57,10 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
     useEffect(() => {
         workspaceIdRef.current = workspaceId;
     }, [workspaceId]);
+
+    // AbortController refs — used to cancel in-flight streams
+    const generateAbortRef = useRef<AbortController | null>(null);
+    const improveAbortRef = useRef<AbortController | null>(null);
 
     // fileData ref — so handleImprove never closes over stale fileData
     // even as file_patch events stream in
@@ -104,11 +108,15 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
             setIsGenerating(true);
             setStatusLog([{ label: "Thinking…", status: "running" }]);
 
+            // Create a fresh AbortController for this request
+            const abortController = new AbortController();
+            generateAbortRef.current = abortController;
+
             try {
                 const res = await fetch("/api/gen-ai-code", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    //signal: abortController.signal,
+                    signal: abortController.signal,
                     body: JSON.stringify({
                         workspaceId: currentWorkspaceId,
                         userId,
@@ -178,18 +186,29 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
                     }
                 }
             } catch (error) {
+                // User-initiated stop — silently roll back the user + placeholder messages
+                if (error instanceof Error && error.name === "AbortError") {
+                    setMessages((prev) => prev.slice(0, -2));
+                    return;
+                }
                 toast.error(
                     error instanceof Error ? error.message : "Something went wrong."
                 );
                 setMessages((prev) => prev.slice(0, -1));
             } finally {
-                // generateAbortRef.current = null;
+                generateAbortRef.current = null;
                 setIsGenerating(false);
                 setStatusLog([]);
             }
         },
         [credits, isGenerating, userId]
     )
+    // Cancel whichever stream is currently in-flight
+    const handleStop = useCallback(() => {
+        generateAbortRef.current?.abort();
+        improveAbortRef.current?.abort();
+    }, []);
+
 
     return (
         <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-[#0a0a0a]">
@@ -202,7 +221,7 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
                 credits={credits}
                 initialPrompt={initialPrompt}
                 onGenerate={handleGenerate}
-                //onStop={handleStop}
+                onStop={handleStop}
                 userId={userId}
                 workspaceId={workspaceId}
                 appTitle={fileData?.title ?? workspace?.title ?? null}

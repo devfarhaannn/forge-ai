@@ -7,7 +7,7 @@ import PricingModal from './Pricingmodal';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { steps } from 'motion/react';
-import { ArrowUp, Check, Loader2, Paperclip } from 'lucide-react';
+import { ArrowUp, Check, Loader2, Paperclip, Square } from 'lucide-react';
 import { Button } from './ui/button';
 
 
@@ -19,7 +19,7 @@ interface ChatPanelProps {
     credits: number;
     initialPrompt: string | null;
     onGenerate: (prompt: string, imageUrl?: string) => Promise<void>;
-    //onStop: () => void;
+    onStop: () => void;
     userId: string;
     workspaceId: string | null;
     appTitle: string | null;
@@ -33,7 +33,7 @@ function ChatPanel({
     credits,
     initialPrompt,
     onGenerate,
-    //onStop,
+    onStop,
     userId,
     workspaceId,
     appTitle,
@@ -252,27 +252,41 @@ function ChatPanel({
                         >
                             <Paperclip className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                            size="icon"
-                            onClick={handleSubmit}
-                            disabled={!canSubmit}
-                            className={cn(
-                                "h-7 w-7 rounded-lg transition-all",
-                                canSubmit
-                                    ? "bg-white text-black hover:bg-white/90 active:scale-95"
-                                    : "bg-white/8 text-white/20 shadow-none"
-                            )}
-                        >
-                            {isGenerating || isImproving ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <ArrowUp className="h-3.5 w-3.5" />
-                            )}
-                        </Button>
+                        {/* Stop button — shown while generating or improving */}
+                        {isGenerating || isImproving ? (
+                            <Button
+                                size="icon"
+                                onClick={onStop}
+                                className="h-7 w-7 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white active:scale-95 transition-all"
+                            >
+                                <Square className="h-3 w-3 fill-current" />
+                            </Button>
+                        ) : (
+                            <Button
+                                size="icon"
+                                onClick={handleSubmit}
+                                disabled={!canSubmit}
+                                className={cn(
+                                    "h-7 w-7 rounded-lg transition-all",
+                                    canSubmit
+                                        ? "bg-white text-black hover:bg-white/90 active:scale-95"
+                                        : "bg-white/8 text-white/20 shadow-none"
+                                )}
+                            >
+                                {isGenerating || isImproving ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <ArrowUp className="h-3.5 w-3.5" />
+                                )}
+                            </Button>
+                        )}
                     </div>
                 </div>
+
                 <p className="mt-1.5 text-center text-[10px] text-white/15">
-                   ⏎ to send · Shift+⏎ for new line
+                    {isGenerating || isImproving
+                        ? "Click ■ to stop generation"
+                        : "⏎ to send · Shift+⏎ for new line"}
                 </p>
             </div>
         </div>
