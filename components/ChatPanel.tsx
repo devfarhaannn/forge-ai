@@ -7,9 +7,10 @@ import PricingModal from './Pricingmodal';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { steps } from 'motion/react';
-import { ArrowUp, Check, Loader2, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, Check, Loader2, Paperclip, Sparkles, Square } from 'lucide-react';
 import { Button } from './ui/button';
 import { useUser } from '@clerk/nextjs';
+import ReactMarkdown from "react-markdown";
 
 
 interface ChatPanelProps {
@@ -107,6 +108,7 @@ function ChatPanel({
             handleSubmit();
         }
     };
+
     return (
         <div className="flex w-[320px] shrink-0 flex-col bg-[#0d0d0d]">
             {/* Header */}
@@ -184,10 +186,22 @@ function ChatPanel({
                                         height={24}
                                         className="mt-0.5 h-6 w-6 shrink-0 rounded-md"
                                     />
-                                    <div className="rounded-2xl rounded-br-sm bg-white/10 px-3.5 py-2.5">
-                                        <p className="text-[13px] leading-relaxed text-white/80 wrap-break-word">
-                                            {msg.content}
-                                        </p>
+                                    <div className="prose prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-white/70 wrap-break-down [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-blue-300/80 [&_code]:text-xs [&_code]:break-all [&_li]:my-0.5 [&_p]:my-1 [&_pre]:overflow-x-auto! [&_pre]:whitespace-pre-wrap! [&_ul]:my-1">
+                                        <ReactMarkdown
+                                            components={{
+                                                code({ children }) {
+                                                    return (
+                                                        <code className="text-blue-500 bg-white/10 px-1 rounded">
+                                                            {children}
+                                                        </code>
+                                                    );
+                                                },
+                                            }}
+                                        >
+                                            {msg.content
+                                                .replace(/\\([#*`_~])/g, "$1")
+                                                .replace(/\\-/g, "-")}
+                                        </ReactMarkdown>
                                     </div>
                                 </div>
                             )}
@@ -232,6 +246,21 @@ function ChatPanel({
                     )}
                 </div>
             </div>
+
+            {/* No-credits upgrade banner */}
+            {noCredits && (
+                <div className="mx-3 mb-2 rounded-xl border border-red-500/15 bg-red-950/40 px-4 py-3">
+                    <p className="mb-2 text-[12px] font-medium text-red-400/80">
+                        You&apos;ve used all your credits
+                    </p>
+                    <PricingModal reason="credits">
+                        <span className="inline-flex h-8 items-center gap-1.5 rounded-full text-xs active:scale-95 cursor-pointer bg-white text-black px-3">
+                            <Sparkles className="h-3 w-3" />
+                            Upgrade plan
+                        </span>
+                    </PricingModal>
+                </div>
+            )}
 
             <div className="border-t border-white/6 p-3">
                 {/* TODO: pending image preview  thubnail with X remove button */}
