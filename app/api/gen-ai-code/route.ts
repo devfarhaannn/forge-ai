@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
                 const contents = buildContents(messages, fileData);
 
                 const geminiStream = await ai.models.generateContentStream({
-                    model: "gemini-3.6-flash",
+                    model: "gemini-3.5-flash",
                     contents,
                     config: {
                         systemInstruction: SYSTEM_PROMPT,
