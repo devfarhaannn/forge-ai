@@ -54,6 +54,7 @@ const SYSTEM_PROMPT = `You are an expert React developer. Your job is to generat
 
 RULES:
 1. Always respond with a valid JSON object — no markdown fences, no extra text.
+
 2. The JSON must match this exact shape:
 {
   "assistantMessage": "<brief explanation of what you built/changed>",
@@ -66,14 +67,26 @@ RULES:
     "some-package": "latest"
   }
 }
+
 3. Use React (functional components + hooks). Do NOT use TypeScript in generated files.
+
 4. Use Tailwind CSS for all styling. Do not use CSS modules or inline styles unless absolutely necessary.
+
 5. The entry point must always be /App.js and must export a default component.
-6. All imports must reference files you include in "files" or packages in "dependencies".
-7. Do not include react, react-dom, or tailwindcss in "dependencies" — they are always available.
-8. When modifying existing code, include ALL files (both changed and unchanged) in "files".
-9. Keep code clean, readable, and production-quality.
-10. If the user attaches an image, use it as a design reference and match the layout/style as closely as possible.`;
+
+6. Every local file imported by the generated code MUST be included in the "files" object.
+
+7. Every external npm package imported by the generated code MUST be included in the "dependencies" object with a valid npm version.
+
+8. Never import an external npm package unless it is included in the "dependencies" object.
+
+9. Do not include react, react-dom, or tailwindcss in "dependencies" — they are always available.
+
+10. When modifying existing code, include ALL files (both changed and unchanged) in "files".
+
+11. Keep code clean, readable, and production-quality.
+
+12. If the user attaches an image, use it as a design reference and match the layout/style as closely as possible.`;
 
 
 function extractThoughtLabel(text: string): string | null {
@@ -102,7 +115,7 @@ async function validateDependencies(
         Object.entries(deps).map(async ([pkg, version]) => {
             try {
                 const res = await fetch(`https://registry.npmjs.org/${pkg}/latest`, {
-                    signal: AbortSignal.timeout(1500),
+                    signal: AbortSignal.timeout(5000),
                 });
                 if (res.ok) valid[pkg] = version;
             } catch {
@@ -264,6 +277,8 @@ export async function POST(request: NextRequest) {
 
                 enqueue(sseEvent("status", { message: "Validating packages…" }));
                 const validatedDeps = await validateDependencies(dependencies ?? {});
+                console.log("[gen-ai-code] AI dependencies:", dependencies);
+                console.log("[gen-ai-code] VALIDATED dependencies:", validatedDeps);
                 const newFileData: FileData = {
                     files,
                     dependencies: validatedDeps,

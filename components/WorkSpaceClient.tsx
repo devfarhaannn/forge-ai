@@ -188,7 +188,7 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
             } catch (error) {
                 // User-initiated stop — silently roll back the user + placeholder messages
                 if (error instanceof Error && error.name === "AbortError") {
-                    setMessages((prev) => prev.slice(0, -2));
+                    setMessages((prev) => prev.slice(0, -1));
                     return;
                 }
                 toast.error(
