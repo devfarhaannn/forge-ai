@@ -277,8 +277,8 @@ export async function POST(request: NextRequest) {
 
                 enqueue(sseEvent("status", { message: "Validating packages…" }));
                 const validatedDeps = await validateDependencies(dependencies ?? {});
-                console.log("[gen-ai-code] AI dependencies:", dependencies);
-                console.log("[gen-ai-code] VALIDATED dependencies:", validatedDeps);
+                // console.log("[gen-ai-code] AI dependencies:", dependencies);
+                // console.log("[gen-ai-code] VALIDATED dependencies:", validatedDeps);
                 const newFileData: FileData = {
                     files,
                     dependencies: validatedDeps,
