@@ -14,6 +14,7 @@ import {
 import { dracula } from "@codesandbox/sandpack-themes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Code2, Eye } from "lucide-react";
+import { RingLoader } from "react-spinners";
 
 const PLACEHOLDER_FILES = {
     "/App.js": {
@@ -70,6 +71,7 @@ interface CodePanelProps {
     isGenerating: boolean;
     statusLog: StatusStep[];
     onFilePatch: (patches: FileData) => void;
+    isImproving: boolean
 
 }
 
@@ -79,10 +81,11 @@ function SandpackInner({
     activeTab,
     setActiveTab,
     fileData,
+    isImproving,
     //   onImprove,
     //   onFixError,
     //   appTitle,
-    //   isImproving,
+
     //   isProUser,
 }: {
     fileData: FileData | null;
@@ -90,10 +93,10 @@ function SandpackInner({
     statusLog: StatusStep[];
     activeTab: ActiveTab;
     setActiveTab: (t: ActiveTab) => void;
+    isImproving: boolean;
     //   onImprove: (userRequest: string) => Promise<void>;
     //   onFixError: (error: string) => Promise<void>;
     //   appTitle: string | null;
-    //   isImproving: boolean;
     //   isProUser: boolean;
 }) {
     const { sandpack, listen } = useSandpack();
@@ -122,8 +125,10 @@ function SandpackInner({
     // msg.type === "compile" && "error" in msg → setPreviewError
     // msg.type === "success" → setPreviewError(null)
 
-    // TODO: auto-switch to preview tab when fileData first arrives
-    // useEffect(() => { if (fileData) setActiveTab("preview"); }, [fileData]);
+    useEffect(() => {
+        if (fileData) setActiveTab("preview");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fileData]);
 
     return (
         <Tabs
@@ -148,7 +153,21 @@ function SandpackInner({
             </div>
 
             <div className="relative flex-1 overflow-hidden">
-                {/* TODO: loading overlay) */}
+                {(isGenerating || isImproving) && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 bg-[#0a0a0a]/85 backdrop-blur-sm">
+                        <RingLoader color="#60a5fa" size={64} speedMultiplier={0.8} />
+                        <div className="flex flex-col items-center gap-1.5">
+                            <p className="text-sm font-medium text-white/60">
+                                {isImproving
+                                    ? "Improving with Cline AI…"
+                                    : (statusLog[statusLog.length - 1]?.label ?? "Generating")}
+                            </p>
+                            <p className="text-xs text-white/20">
+                                This usually takes 40–50 seconds
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <SandpackLayout
                     style={{
@@ -188,7 +207,7 @@ function SandpackInner({
                             showInlineErrors
                             closableTabs
                             readOnly
-                            // readonly - users modify via prompts, not direct editing
+                        // readonly - users modify via prompts, not direct editing
                         />
                     </TabsContent>
                 </SandpackLayout>
@@ -204,6 +223,7 @@ export function CodePanel({
     isGenerating,
     statusLog,
     onFilePatch: _onFilePatch,
+    isImproving
 }: CodePanelProps) {
     const [activeTab, setActiveTab] = useState<ActiveTab>("preview");
 
@@ -235,6 +255,7 @@ export function CodePanel({
                 }}>
                 <SandpackInner
                     isGenerating={isGenerating}
+                    isImproving={isImproving}
                     statusLog={statusLog}
                     activeTab={activeTab}
                     setActiveTab={setActiveTab}

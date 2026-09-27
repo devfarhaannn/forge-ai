@@ -74,11 +74,11 @@ RULES:
 
 5. The entry point must always be /App.js and must export a default component.
 
-6. Every local file imported by the generated code MUST be included in the "files" object.
+6. All imports must reference files you include in "files" or packages in "dependencies".
 
-7. Every external npm package imported by the generated code MUST be included in the "dependencies" object with a valid npm version.
+7. Every external npm package imported by the generated code MUST be included in "dependencies".
 
-8. Never import an external npm package unless it is included in the "dependencies" object.
+8. Never import an npm package that is missing from "dependencies".
 
 9. Do not include react, react-dom, or tailwindcss in "dependencies" — they are always available.
 
@@ -86,8 +86,25 @@ RULES:
 
 11. Keep code clean, readable, and production-quality.
 
-12. If the user attaches an image, use it as a design reference and match the layout/style as closely as possible.`;
+12. If the user attaches an image, use it as a design reference and match the layout/style as closely as possible.
 
+13. All generated JSX MUST be valid and compilable.
+
+14. Every JSX opening tag MUST have exactly one matching closing tag or be self-closing.
+
+15. Never generate malformed JSX such as </</tag>, <</tag>, duplicated closing tags, or incomplete tags.
+
+16. Carefully validate SVG and Recharts JSX. Make sure elements such as <defs>, <linearGradient>, <stop>, <XAxis>, <YAxis>, <Tooltip>, <Line>, <Bar>, and <Area> are correctly opened and closed.
+
+17. Make sure all brackets, parentheses, quotes, template literals, objects, and arrays are properly closed.
+
+18. Do not reference undefined variables, functions, components, hooks, or imports.
+
+19. Only add dependencies that are actually imported and required by the generated application.
+
+20. Before returning the response, perform a final syntax check mentally and ensure the generated application can compile successfully in Sandpack.
+
+21. Always return complete file contents. Never return partial code, placeholders, or "rest of code" comments.`;
 
 function extractThoughtLabel(text: string): string | null {
     // Try to grab **bold heading** at the start

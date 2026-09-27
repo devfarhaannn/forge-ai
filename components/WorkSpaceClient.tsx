@@ -230,6 +230,7 @@ const WorkspaceClient = ({ initialPrompt, userCredits, userId, userPlan, workspa
             {/* Code panel — right */}
             <CodePanel
                 fileData={fileData}
+                isImproving={isImproving}
                 isGenerating={isGenerating}
                 statusLog={statusLog}
                 onFilePatch={handleFilePatch} />
