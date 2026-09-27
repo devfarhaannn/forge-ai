@@ -13,8 +13,9 @@ import {
 } from "@codesandbox/sandpack-react";
 import { dracula } from "@codesandbox/sandpack-themes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Code2, Eye } from "lucide-react";
+import { AlertTriangle, Bot, Code2, Eye } from "lucide-react";
 import { RingLoader } from "react-spinners";
+import { Button } from "./ui/button";
 
 const PLACEHOLDER_FILES = {
     "/App.js": {
@@ -72,6 +73,7 @@ interface CodePanelProps {
     statusLog: StatusStep[];
     onFilePatch: (patches: FileData) => void;
     isImproving: boolean
+    onFixError: (error: string) => Promise<void>;
 
 }
 
@@ -82,8 +84,9 @@ function SandpackInner({
     setActiveTab,
     fileData,
     isImproving,
+    onFixError,
     //   onImprove,
-    //   onFixError,
+
     //   appTitle,
 
     //   isProUser,
@@ -94,13 +97,52 @@ function SandpackInner({
     activeTab: ActiveTab;
     setActiveTab: (t: ActiveTab) => void;
     isImproving: boolean;
+    onFixError: (error: string) => Promise<void>;
     //   onImprove: (userRequest: string) => Promise<void>;
-    //   onFixError: (error: string) => Promise<void>;
+
     //   appTitle: string | null;
     //   isProUser: boolean;
 }) {
     const { sandpack, listen } = useSandpack();
-    // TODO: listen - imported from useSandpack for error detection
+    const [previewError, setPreviewError] = useState<string | null>(null);
+    const unsubscribeRef = useRef<(() => void) | null>(null);
+
+
+      // Listen for Sandpack runtime errors
+  useEffect(() => {
+    unsubscribeRef.current = listen((msg) => {
+      if (
+        msg.type === "action" &&
+        "action" in msg &&
+        msg.action === "show-error"
+      ) {
+        const errMsg =
+          "message" in msg && typeof msg.message === "string"
+            ? msg.message
+            : "An error occurred in the preview.";
+        setPreviewError(errMsg);
+        return;
+      }
+      if (msg.type === "compile") {
+        const errMsg =
+          "message" in msg && typeof msg.message === "string"
+            ? msg.message
+            : "Compile error in preview.";
+        setPreviewError(errMsg);
+        return;
+      }
+      if (msg.type === "success") {
+        setPreviewError(null);
+      }
+    });
+    return () => unsubscribeRef.current?.();
+  }, [listen]);
+
+
+    useEffect(() => {
+        if (isGenerating) setPreviewError(null);
+    }, [isGenerating]);
+
 
     // -- Push file updates into Sandpack without remounting ------------.
     // We key SandpackProvider on the file PATH SET only.
@@ -212,6 +254,32 @@ function SandpackInner({
                     </TabsContent>
                 </SandpackLayout>
             </div>
+            {/* Preview error banner — uses onFixError (Gemini), not onImprove (Cline) */}
+            {previewError &&
+                !isGenerating &&
+                !isImproving &&
+                activeTab === "preview" && (
+                    <div className="absolute inset-x-0 -bottom-3 z-20 border-t border-red-500/20 bg-red-950/99 p-4 pb-6">
+                        <div className="flex items-center gap-2.5">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400/70" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-red-400/80">
+                                    Preview error
+                                </p>
+                                <p className="break-all text-[11px] text-red-300/50">
+                                    {previewError}
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => onFixError(previewError)}
+                                variant="destructive"
+                            >
+                                <Bot className="h-3 w-3" />
+                                Fix with AI
+                            </Button>
+                        </div>
+                    </div>
+                )}
 
         </Tabs>
     )
@@ -223,7 +291,8 @@ export function CodePanel({
     isGenerating,
     statusLog,
     onFilePatch: _onFilePatch,
-    isImproving
+    isImproving,
+    onFixError
 }: CodePanelProps) {
     const [activeTab, setActiveTab] = useState<ActiveTab>("preview");
 
@@ -257,6 +326,7 @@ export function CodePanel({
                     isGenerating={isGenerating}
                     isImproving={isImproving}
                     statusLog={statusLog}
+                    onFixError={onFixError}
                     activeTab={activeTab}
                     setActiveTab={setActiveTab}
                     fileData={fileData} />
