@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import { GoogleGenAI } from "@google/genai"
 import { aj } from "@/lib/arcjet";
+import { ThinkingLevel } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
                 const contents = buildContents(messages, fileData);
 
                 const geminiStream = await ai.models.generateContentStream({
-                    model: "gemini-3.5-flash",
+                    model: "gemini-3.5-flash-lite",
                     contents,
                     config: {
                         systemInstruction: SYSTEM_PROMPT,
@@ -220,7 +221,8 @@ export async function POST(request: NextRequest) {
                             // Gemini emits thought chunks before the actual output.
                             // We extract short labels from them and emit as status events
                             // so the user sees "Designing layout...", "Adding interactivity..." etc.
-                            includeThoughts: true,
+                            includeThoughts: true,  
+                            //thinkingLevel: ThinkingLevel.LOW,
                         },
                     },
                 });
